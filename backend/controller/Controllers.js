@@ -5,10 +5,20 @@ import ErrorResponse from "../utils/ErrorResponse.js"
 export const GetAll = AsyncHander(async (req, res, next) => {
 
     let query;
+    let uiValues = {
+        filtering: {},
+        sorting: {}
+    }
 
     const req_query = {...req.query};
     const remove_fields = ["sort"];
     remove_fields.forEach(value => delete req_query[value]);
+
+    const filterKeys = Object.keys(req_query);
+    const filterValues = Object.values(req_query);
+
+    filterKeys.forEach((value, index) => uiValues.filtering[value] = filterValues[index])
+
 
     let query_str = JSON.stringify(req_query)
     query_str = query_str.replace(/\b(gt|gte|lt|lte|in)\b/g, (match) => `$${match}`)
@@ -17,6 +27,18 @@ export const GetAll = AsyncHander(async (req, res, next) => {
 
     if(req.query.sort) {
         const sort_by_array = req.query.sort.split(",");
+
+        sort_by_array.forEach((val) => {
+            let order;
+
+            if(val[0] === "-"){
+                order = "descending"
+            } else {
+                order = "ascending"
+            }
+            uiValues.sorting[val.replace("-", "")] = order
+        })
+
         const sort_by_str = sort_by_array.join(" ");
         query = query.sort(sort_by_str)
     } else {
@@ -25,9 +47,16 @@ export const GetAll = AsyncHander(async (req, res, next) => {
 
     const bootcamps = await query;
 
+    const maxPrice = await Bootcamp.find().sort({price: -1}).limit(1).select("-_id price")
+    const minPrice = await Bootcamp.find().sort({price: 1}).limit(1).select("-_id price")
+
+    uiValues.maxPrice = maxPrice[0].price;
+    uiValues.minPrice = minPrice[0].price;
+
     res.status(200).json({
         success: true,
-        data: bootcamps
+        data: bootcamps,
+        uiValues
     })
 })
 
